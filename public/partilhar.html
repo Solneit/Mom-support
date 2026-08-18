@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Partilhar atualização — Mom Support</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+  .form-section{padding:40px 0 70px;}
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <a href="javascript:history.back()" class="back">←</a>
+  <a href="index.html" class="logo"><span class="dot"></span>Mom Support</a>
+  <span style="width:20px;"></span>
+</nav>
+
+<section class="form-section">
+  <div class="wrap-narrow">
+    <div class="form-card">
+      <h1>Partilhar atualização</h1>
+      <div class="sub">Ajude outras famílias — leva menos de 30 segundos.</div>
+
+      <form id="shareForm">
+        <div class="field">
+          <label>Creche / serviço <span class="req">*</span></label>
+          <select id="serviceSelect" required><option value="">A carregar serviços…</option></select>
+        </div>
+
+        <div class="field">
+          <label>Estado das vagas comunicado <span class="req">*</span></label>
+          <div class="toggle-row" id="statusToggle">
+            <div class="toggle-opt" data-value="Vagas disponíveis">Disponíveis</div>
+            <div class="toggle-opt" data-value="Lista de espera">Lista de espera</div>
+            <div class="toggle-opt" data-value="Sem vagas">Sem vagas</div>
+          </div>
+          <div class="field-err" id="statusErr">Selecione uma opção.</div>
+        </div>
+
+        <div class="field">
+          <label for="contactDate">Data do contacto <span class="req">*</span></label>
+          <input type="date" id="contactDate" required>
+        </div>
+
+        <div class="field">
+          <label for="contactMethod">Método de contacto <span class="req">*</span></label>
+          <select id="contactMethod" required>
+            <option value="Telefone">Telefone</option>
+            <option value="Email">Email</option>
+            <option value="Website">Website</option>
+            <option value="Presencial">Presencial</option>
+            <option value="Redes sociais">Redes sociais</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="gotSpot">Conseguiu vaga? <span class="req">*</span></label>
+          <select id="gotSpot" required>
+            <option value="Ainda não sei">Ainda não sei</option>
+            <option value="Sim">Sim</option>
+            <option value="Não">Não</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="comment">Comentário</label>
+          <textarea id="comment" placeholder="Opcional — algo que outras famílias devam saber?"></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block" style="margin-top:24px;" id="submitBtn">Enviar atualização</button>
+        <div class="form-status" id="formStatus"></div>
+      </form>
+    </div>
+  </div>
+</section>
+
+<script>
+  const qs = new URLSearchParams(window.location.search);
+  const preselectId = qs.get('serviceId');
+  let services = [];
+  let selectedStatus = '';
+
+  async function loadServices(){
+    const sel = document.getElementById('serviceSelect');
+    try {
+      const resp = await fetch('/.netlify/functions/services');
+      const data = await resp.json();
+      services = data.results || [];
+      sel.innerHTML = services.map(s =>
+        `<option value="${s.id}" data-name="${(s.name||'').replace(/"/g,'&quot;')}">${s.institution} — ${s.type}</option>`
+      ).join('');
+      if(preselectId) sel.value = preselectId;
+    } catch(e){
+      sel.innerHTML = '<option value="">Não foi possível carregar os serviços</option>';
+    }
+  }
+
+  document.getElementById('statusToggle').addEventListener('click', (e) => {
+    const opt = e.target.closest('.toggle-opt');
+    if(!opt) return;
+    document.querySelectorAll('#statusToggle .toggle-opt').forEach(o => o.classList.remove('selected'));
+    opt.classList.add('selected');
+    selectedStatus = opt.dataset.value;
+    document.getElementById('statusErr').style.display = 'none';
+  });
+
+  document.getElementById('shareForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if(!selectedStatus){
+      document.getElementById('statusErr').style.display = 'block';
+      return;
+    }
+    const sel = document.getElementById('serviceSelect');
+    const serviceId = sel.value;
+    const serviceName = sel.selectedOptions[0]?.dataset.name || '';
+    const btn = document.getElementById('submitBtn');
+    const status = document.getElementById('formStatus');
+    btn.disabled = true;
+    btn.textContent = 'A enviar…';
+
+    try {
+      const resp = await fetch('/.netlify/functions/reviews', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          serviceId,
+          serviceName,
+          vacancyStatusReported: selectedStatus,
+          contactDate: document.getElementById('contactDate').value,
+          contactMethod: document.getElementById('contactMethod').value,
+          gotSpot: document.getElementById('gotSpot').value,
+          comment: document.getElementById('comment').value,
+        }),
+      });
+      if(!resp.ok) throw new Error('HTTP ' + resp.status);
+      status.className = 'form-status ok';
+      status.textContent = 'Obrigado! A sua atualização foi enviada para revisão.';
+      document.getElementById('shareForm').reset();
+      document.querySelectorAll('#statusToggle .toggle-opt').forEach(o => o.classList.remove('selected'));
+      selectedStatus = '';
+      btn.textContent = 'Enviar atualização';
+      btn.disabled = false;
+    } catch(err){
+      status.className = 'form-status err';
+      status.textContent = 'Não foi possível enviar agora (' + err.message + '). Tente novamente.';
+      btn.textContent = 'Enviar atualização';
+      btn.disabled = false;
+    }
+  });
+
+  loadServices();
+</script>
+</body>
+</html>

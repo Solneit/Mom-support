@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Detalhes — Mom Support</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+  .detail-section{padding:32px 0 64px;}
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <a href="javascript:history.back()" class="back">←</a>
+  <a href="index.html" class="logo"><span class="dot"></span>Mom Support</a>
+  <span style="width:20px;"></span>
+</nav>
+
+<section class="detail-section">
+  <div class="wrap-narrow" id="main"><div class="loading">A carregar…</div></div>
+</section>
+
+<script>
+  const id = new URLSearchParams(window.location.search).get('id');
+
+  function avatarClass(type){
+    if((type||'').toLowerCase().includes('catl')) return 'sage';
+    if((type||'').toLowerCase().includes('pre')) return 'gold';
+    return 'plum';
+  }
+  function initials(name){
+    return (name || '?').split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+  }
+  function statusInfo(vacancyStatus){
+    const v = (vacancyStatus || '').toLowerCase();
+    if(v.includes('dispon')) return {cls:'ok', label:'Vagas disponíveis'};
+    if(v.includes('sem vaga')) return {cls:'no', label:'Sem vagas'};
+    if(v.includes('espera')) return {cls:'wait', label:'Lista de espera'};
+    return {cls:'warn', label:'A confirmar'};
+  }
+  function ratingCell(val){
+    return val != null ? `${val.toFixed(1)} / 5` : 'Sem avaliações';
+  }
+
+  async function load(){
+    const main = document.getElementById('main');
+    try {
+      const resp = await fetch('/.netlify/functions/services');
+      if(!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      const s = (data.results || []).find(x => x.id === id);
+      if(!s){ main.innerHTML = '<div class="empty">Instituição não encontrada.</div>'; return; }
+
+      const st = statusInfo(s.vacancyStatus);
+      const ageLabel = s.ageRangeLabel || (s.ageMin!=null && s.ageMax!=null ? `${s.ageMin}–${s.ageMax} meses` : '—');
+
+      main.innerHTML = `
+        <div class="detail-card">
+          <div class="detail-head">
+            <div class="avatar ${avatarClass(s.type)}" style="width:72px;height:72px;font-size:1.5rem;border-radius:16px;">${initials(s.institution)}</div>
+            <div>
+              <h3>${s.institution || s.name}</h3>
+              <div class="sub">${s.type || ''}${s.address ? ' · ' + s.address : ''}</div>
+              <div class="contact">
+                ${s.phone ? `<a href="tel:${s.phone}">📞 ${s.phone}</a>` : ''}
+                ${s.email ? `<a href="mailto:${s.email}">✉️ ${s.email}</a>` : ''}
+              </div>
+            </div>
+          </div>
+          <div class="detail-grid">
+            <div class="drow"><span class="k">Faixa etária</span><span class="v">${ageLabel}</span></div>
+            <div class="drow"><span class="k">Estado das vagas</span><span class="v"><span class="status-pill ${st.cls}"><span class="dot"></span>${st.label}</span></span></div>
+            <div class="drow"><span class="k">Horário</span><span class="v">${s.schedule || '—'}</span></div>
+            <div class="drow"><span class="k">Preço / mês</span><span class="v">${s.priceMonth != null ? '€' + s.priceMonth : '—'}</span></div>
+            <div class="drow"><span class="k">Última verificação</span><span class="v">${s.lastVerified || 'Ainda não verificado'}</span></div>
+            <div class="drow"><span class="k">Método de verificação</span><span class="v">${s.verificationMethod || '—'}</span></div>
+          </div>
+          <div class="ratings-strip" id="ratingsStrip">
+            <div class="rstat"><div class="label">Avaliação</div><div class="val">A carregar…</div></div>
+            <div class="rstat"><div class="label">Comunicação</div><div class="val">—</div></div>
+            <div class="rstat"><div class="label">Inscrição</div><div class="val">—</div></div>
+          </div>
+          <div class="detail-actions">
+            <a href="#" class="btn btn-ghost">Ver no mapa</a>
+            <a href="partilhar.html?serviceId=${encodeURIComponent(s.id)}&serviceName=${encodeURIComponent(s.name)}&institution=${encodeURIComponent(s.institution)}" class="btn btn-ghost">Partilhar atualização</a>
+            <a href="plano.html" class="btn btn-primary">Adicionar ao meu plano</a>
+          </div>
+        </div>
+      `;
+
+      // Load real ratings in the background
+      fetch('/.netlify/functions/reviews?service=' + encodeURIComponent(s.name))
+        .then(r => r.json())
+        .then(rv => {
+          const strip = document.getElementById('ratingsStrip');
+          strip.innerHTML = `
+            <div class="rstat"><div class="label">Avaliação${rv.count ? ' (' + rv.count + ')' : ''}</div><div class="val">${ratingCell(rv.geral)}</div></div>
+            <div class="rstat"><div class="label">Comunicação</div><div class="val">${ratingCell(rv.comunicacao)}</div></div>
+            <div class="rstat"><div class="label">Inscrição</div><div class="val">${ratingCell(rv.processo)}</div></div>
+          `;
+        })
+        .catch(()=>{});
+
+    } catch(e){
+      main.innerHTML = `<div class="err-box">Não foi possível carregar os detalhes (${e.message}).</div>`;
+    }
+  }
+  load();
+</script>
+</body>
+</html>

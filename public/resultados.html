@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Resultados — Mom Support</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+  .results-head{padding:36px 0 0;}
+  .results-head h2{font-size:1.6rem;}
+  .results-head p{color:var(--mute);font-size:0.92rem;margin-top:6px;}
+  .count-row{display:flex;justify-content:space-between;align-items:center;margin-top:22px;}
+  .count-label{font-size:0.85rem;color:var(--mute);}
+  .avatar-letter{font-size:1.2rem;}
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <a href="index.html" class="logo"><span class="dot"></span>Mom Support</a>
+  <select class="lang"><option>PT</option><option>EN</option><option>UA</option></select>
+</nav>
+
+<section class="results-head">
+  <div class="wrap">
+    <h2>Encontre uma creche perto de si</h2>
+    <p>Filtre por localização, idade e disponibilidade para encontrar as opções mais adequadas à sua família.</p>
+
+    <div class="filter-bar">
+      <select class="pill-select" id="fAge">
+        <option value="">Idade da criança</option>
+        <option value="2">0–4 meses</option>
+        <option value="6">4–8 meses</option>
+        <option value="10">8–12 meses</option>
+        <option value="18">12–24 meses</option>
+        <option value="30">24–36 meses</option>
+      </select>
+      <select class="pill-select" id="fType">
+        <option value="">Tipo de serviço</option>
+        <option value="Creche">Creche</option>
+        <option value="CATL">CATL</option>
+        <option value="Pre-school / Jardim de Infância">Pré-escolar / Jardim de Infância</option>
+      </select>
+      <select class="pill-select" id="fStatus">
+        <option value="">Estado das vagas</option>
+        <option value="ok">Vagas disponíveis</option>
+        <option value="wait">Lista de espera</option>
+        <option value="no">Sem vagas</option>
+        <option value="warn">A confirmar</option>
+      </select>
+      <input type="text" class="pill-select" id="fLoc" placeholder="Localização / Concelho" style="background-image:none;">
+      <div class="search-box">
+        🔍 <input type="text" id="fSearch" placeholder="Procurar por nome…">
+      </div>
+    </div>
+
+    <div class="count-row">
+      <div class="count-label" id="countLabel">A carregar…</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="results" id="list"><div class="loading">A carregar opções…</div></div>
+  </div>
+</section>
+
+<script>
+  const qs = new URLSearchParams(window.location.search);
+  let allResults = [];
+
+  document.getElementById('fAge').value = qs.get('ageMonths') || '';
+  document.getElementById('fLoc').value = qs.get('municipality') || '';
+
+  function statusInfo(vacancyStatus){
+    const v = (vacancyStatus || '').toLowerCase();
+    if(v.includes('dispon')) return {cls:'ok', key:'ok', label:'🟢 Vagas disponíveis'};
+    if(v.includes('sem vaga')) return {cls:'no', key:'no', label:'🔴 Sem vagas'};
+    if(v.includes('espera')) return {cls:'wait', key:'wait', label:'🟠 Lista de espera'};
+    return {cls:'warn', key:'warn', label:'🟡 A confirmar'};
+  }
+
+  function avatarClass(type){
+    if((type||'').toLowerCase().includes('catl')) return 'sage';
+    if((type||'').toLowerCase().includes('pre')) return 'gold';
+    return 'plum';
+  }
+
+  function initials(name){
+    return (name || '?').split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+  }
+
+  function cardHtml(s){
+    const st = statusInfo(s.vacancyStatus);
+    const ageLabel = s.ageRangeLabel || (s.ageMin!=null && s.ageMax!=null ? `${s.ageMin}–${s.ageMax} meses` : '—');
+    return `
+    <a class="card" href="instituicao.html?id=${encodeURIComponent(s.id)}">
+      <div class="avatar ${avatarClass(s.type)}" style="width:64px;height:64px;"><span class="avatar-letter">${initials(s.institution)}</span></div>
+      <div class="card-body">
+        <div class="card-top">
+          <div>
+            <div class="card-name">${s.institution || s.name}</div>
+            <div class="card-tags"><span class="tag">${s.type || ''}</span></div>
+          </div>
+          <span class="status-pill ${st.cls}"><span class="dot"></span>${st.label.replace(/^\S+\s/,'')}</span>
+        </div>
+        <div class="card-meta">
+          <div class="meta-item"><div class="meta-label">Idade</div><div class="meta-val">${ageLabel}</div></div>
+          <div class="meta-item"><div class="meta-label">Horário</div><div class="meta-val">${s.schedule || '—'}</div></div>
+          <div class="meta-item"><div class="meta-label">Preço / mês</div><div class="meta-val">${s.priceMonth != null ? '€' + s.priceMonth : '—'}</div></div>
+          <div class="meta-item freshness"><div class="meta-label">Verificado</div><div class="meta-val">${s.lastVerified || 'Ainda não'}</div></div>
+        </div>
+      </div>
+    </a>`;
+  }
+
+  function applyFilters(){
+    const age = document.getElementById('fAge').value;
+    const type = document.getElementById('fType').value;
+    const statusKey = document.getElementById('fStatus').value;
+    const loc = document.getElementById('fLoc').value.trim().toLowerCase();
+    const search = document.getElementById('fSearch').value.trim().toLowerCase();
+
+    let filtered = allResults.filter(s => {
+      if(age){
+        const a = parseInt(age, 10);
+        const min = s.ageMin ?? -Infinity, max = s.ageMax ?? Infinity;
+        if(a < min || a > max) return false;
+      }
+      if(type && s.type !== type) return false;
+      if(statusKey && statusInfo(s.vacancyStatus).key !== statusKey) return false;
+      if(loc && !(s.address || '').toLowerCase().includes(loc)) return false;
+      if(search && !((s.institution||'') + ' ' + (s.name||'')).toLowerCase().includes(search)) return false;
+      return true;
+    });
+
+    const listEl = document.getElementById('list');
+    const countEl = document.getElementById('countLabel');
+    countEl.textContent = `${filtered.length} opç${filtered.length === 1 ? 'ão encontrada' : 'ões encontradas'}`;
+    listEl.innerHTML = filtered.length
+      ? filtered.map(cardHtml).join('')
+      : '<div class="empty">Sem opções para estes critérios. Tente alargar a idade ou a localização.</div>';
+  }
+
+  async function load(){
+    try {
+      const resp = await fetch('/.netlify/functions/services');
+      if(!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      allResults = data.results || [];
+      applyFilters();
+    } catch(e){
+      document.getElementById('countLabel').textContent = '';
+      document.getElementById('list').innerHTML =
+        `<div class="err-box">Não foi possível carregar os resultados (${e.message}). Confirme AIRTABLE_TOKEN e o nome da tabela SERVICES.</div>`;
+    }
+  }
+
+  ['fAge','fType','fStatus','fLoc','fSearch'].forEach(id => {
+    document.getElementById(id).addEventListener('input', applyFilters);
+    document.getElementById(id).addEventListener('change', applyFilters);
+  });
+
+  load();
+</script>
+</body>
+</html>

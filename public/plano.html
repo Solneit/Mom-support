@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>O meu plano — Mom Support</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+  /* page-specific pieces not in the shared stylesheet */
+  .screen{max-width:560px;margin:0 auto;padding:0 24px 50px;}
+  .countdown{
+    background:var(--plum-deep);color:var(--cloud);border-radius:12px;padding:22px;text-align:center;
+  }
+  .countdown .label{font-size:0.78rem;color:#CFC3D3;text-transform:uppercase;letter-spacing:.06em;font-family:'Space Mono',monospace;}
+  .countdown .date{font-family:'Fraunces',serif;font-size:1.3rem;margin-top:6px;}
+  .countdown .days{font-size:0.85rem;color:var(--gold);margin-top:8px;font-weight:600;}
+
+  .progress-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);margin-top:20px;border-radius:8px;overflow:hidden;}
+  .progress-cell{background:var(--cloud);padding:16px 8px;text-align:center;}
+  .progress-num{font-family:'Space Mono',monospace;font-size:1.4rem;font-weight:700;color:var(--plum-deep);}
+  .progress-label{font-size:0.68rem;color:var(--mute);margin-top:4px;line-height:1.3;}
+
+  .section{margin-top:28px;}
+  .section h3{font-size:0.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--gold);font-family:'Space Mono',monospace;margin:0 0 12px;}
+
+  .next-card{border:1px solid var(--line);border-radius:10px;padding:16px;background:#FBF7EF;}
+  .next-when{font-size:0.78rem;color:var(--mute);font-weight:600;}
+  .next-title{font-family:'Fraunces',serif;font-size:1.05rem;color:var(--plum-deep);margin-top:4px;}
+  .next-desc{font-size:0.87rem;color:var(--ink);margin-top:6px;}
+  .next-done{
+    margin-top:14px;padding:10px;width:100%;border:1px solid var(--line);background:var(--cloud);
+    border-radius:8px;font-size:0.85rem;font-weight:600;color:var(--plum-deep);cursor:pointer;
+  }
+  .next-done:hover{background:var(--plum-deep);color:var(--cloud);}
+
+  .app-row{
+    display:flex;justify-content:space-between;align-items:center;padding:13px 0;
+    border-top:1px solid var(--line);
+  }
+  .app-row:first-child{border-top:none;}
+  .app-name{font-size:0.92rem;font-weight:600;color:var(--ink);}
+  .app-sub{font-size:0.75rem;color:var(--mute);margin-top:2px;}
+</style>
+</head>
+<body>
+<div class="topnav">
+  <a class="logo" href="index.html"><span class="dot"></span>Mom Support</a>
+  <a class="back" href="index.html" aria-label="voltar">←</a>
+</div>
+<div class="screen">
+  <h1 style="font-size:1.5rem;margin:24px 0 4px;">O meu plano</h1>
+  <p class="sub" style="color:var(--mute);font-size:0.9rem;margin-bottom:20px;">Acompanhe as suas candidaturas num só lugar.</p>
+  <main id="main"><div class="loading">A carregar o seu plano…</div></main>
+</div>
+
+<script>
+  const parentName = new URLSearchParams(window.location.search).get('parentName') || 'Test Parent';
+
+  function statusBadge(status){
+    const s = (status || '').toLowerCase();
+    if(/accept|confirm/.test(s)) return {cls:'ok', label:'Confirmada'};
+    if(/waiting|espera/.test(s)) return {cls:'warn', label:'Lista de espera'};
+    if(/visit/.test(s)) return {cls:'info', label:'Visita marcada'};
+    if(/no response|reject|sem resposta/.test(s)) return {cls:'no', label:'Sem resposta'};
+    return {cls:'warn', label: status || 'Contactada'};
+  }
+
+  function fmtDate(d){
+    if(!d) return '';
+    const dt = new Date(d);
+    if(isNaN(dt)) return d;
+    return dt.toLocaleDateString('pt-PT', {day:'2-digit', month:'short', year:'numeric'});
+  }
+
+  async function load(){
+    const main = document.getElementById('main');
+    try {
+      const resp = await fetch('/.netlify/functions/plan?parentName=' + encodeURIComponent(parentName));
+      if(!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      const p = data.parent, prog = data.progress, next = data.nextAction, apps = data.applications;
+
+      let daysHtml = '';
+      if(p.daysRemaining !== null){
+        daysHtml = p.daysRemaining >= 0
+          ? `${p.daysRemaining} dias restantes`
+          : `Data ultrapassada há ${Math.abs(p.daysRemaining)} dias`;
+      }
+
+      let nextHtml = '<div class="section"><h3>Próxima ação</h3><div class="next-card"><div class="next-desc">Sem ações pendentes de momento.</div></div></div>';
+      if(next){
+        nextHtml = `
+        <div class="section">
+          <h3>Próxima ação</h3>
+          <div class="next-card">
+            <div class="next-when">${fmtDate(next.when) || 'Em breve'}</div>
+            <div class="next-title">${next.service}</div>
+            <div class="next-desc">${next.action}</div>
+            <button class="next-done" id="markDone">Marcar como concluído</button>
+          </div>
+        </div>`;
+      }
+
+      const appsHtml = apps.length
+        ? apps.map(a => {
+            const b = statusBadge(a.status);
+            return `
+            <div class="app-row">
+              <div>
+                <div class="app-name">${a.service}</div>
+                <div class="app-sub">${a.nextFollowUp ? 'Follow-up: ' + fmtDate(a.nextFollowUp) : (a.waitingListPosition ? 'Posição: ' + a.waitingListPosition : '')}</div>
+              </div>
+              <span class="status-pill ${b.cls}"><span class="dot"></span>${b.label}</span>
+            </div>`;
+          }).join('')
+        : '<div class="empty">Ainda sem candidaturas registadas.</div>';
+
+      main.innerHTML = `
+        <div class="countdown">
+          <div class="label">Precisa de childcare até</div>
+          <div class="date">${fmtDate(p.childcareNeededFrom) || 'Data por definir'}</div>
+          <div class="days">${daysHtml}</div>
+        </div>
+
+        <div class="progress-grid">
+          <div class="progress-cell"><div class="progress-num">${prog.totalApplications}</div><div class="progress-label">candidaturas</div></div>
+          <div class="progress-cell"><div class="progress-num">${prog.waitingLists}</div><div class="progress-label">listas de espera</div></div>
+          <div class="progress-cell"><div class="progress-num">${prog.visits}</div><div class="progress-label">visita${prog.visits===1?'':'s'}</div></div>
+          <div class="progress-cell"><div class="progress-num">${prog.accepted}</div><div class="progress-label">vaga${prog.accepted===1?'':'s'} confirmada${prog.accepted===1?'':'s'}</div></div>
+        </div>
+
+        ${nextHtml}
+
+        <div class="section">
+          <h3>As minhas candidaturas</h3>
+          ${appsHtml}
+        </div>
+      `;
+
+      const markBtn = document.getElementById('markDone');
+      if(markBtn) markBtn.addEventListener('click', () => {
+        markBtn.textContent = 'Concluído ✓';
+        markBtn.disabled = true;
+        // Writing this back to Airtable (Applications.Status / Next Action) is
+        // the natural next step here — same PATCH pattern as confirmar.html.
+      });
+
+    } catch(e){
+      main.innerHTML = `<div class="err-box">Não foi possível carregar o plano (${e.message}). Confirme que a tabela PARENTS/APPLICATIONS tem esse nome exato no Airtable.</div>`;
+    }
+  }
+  load();
+</script>
+</body>
+</html>

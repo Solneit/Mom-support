@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Confirmar disponibilidade — Mom Support</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+  /* page-specific pieces not in the shared stylesheet */
+  .screen{max-width:520px;margin:0 auto;padding:0 24px 40px;}
+  .time{font-size:0.78rem;color:var(--gold);font-weight:600;margin-top:10px;}
+
+  .card{margin-top:22px;flex-direction:column;box-shadow:none;}
+  .card:hover{transform:none;box-shadow:none;}
+  .card .service{font-family:'Fraunces',serif;font-weight:600;font-size:1.02rem;color:var(--plum-deep);}
+  .card .agerange{font-size:0.8rem;color:var(--mute);margin-top:2px;}
+  .card .status-pill{margin-top:12px;}
+
+  .confirm-q{font-size:0.85rem;color:var(--ink);margin-top:14px;font-weight:600;}
+  .confirm-actions{display:flex;gap:10px;margin-top:10px;}
+  .confirm-actions button{
+    flex:1;padding:11px;border-radius:8px;font-size:0.87rem;font-weight:600;cursor:pointer;
+  }
+  .btn-yes{background:var(--plum-deep);color:var(--cloud);border:1px solid var(--plum-deep);}
+  .btn-yes:hover{background:var(--gold);color:var(--plum-deep);}
+  .btn-alt{background:var(--cloud);color:var(--plum-deep);border:1px solid var(--line);}
+  .btn-alt:hover{border-color:var(--plum-deep);}
+
+  .edit-panel{margin-top:14px;padding-top:14px;border-top:1px dashed var(--line);display:none;}
+  .edit-panel.open{display:block;}
+  .edit-panel .opt{display:flex;align-items:center;gap:10px;padding:8px 0;font-size:0.87rem;}
+  .edit-panel input[type=radio]{accent-color:var(--plum-deep);width:16px;height:16px;}
+  .save-btn{
+    width:100%;margin-top:10px;padding:11px;border:none;border-radius:8px;
+    background:var(--plum-deep);color:var(--cloud);font-weight:600;font-size:0.87rem;cursor:pointer;
+  }
+  .save-btn:hover{background:var(--gold);color:var(--plum-deep);}
+  .done-tag{margin-top:12px;font-size:0.8rem;color:var(--green);font-weight:600;display:none;}
+
+  .confirm-all{
+    width:100%;margin-top:28px;padding:15px;border:none;border-radius:8px;
+    background:var(--plum-deep);color:var(--cloud);font-size:1rem;font-weight:600;cursor:pointer;
+  }
+  .confirm-all:hover{background:var(--gold);color:var(--plum-deep);}
+  .confirm-all:disabled{opacity:0.5;cursor:default;}
+  .loading,.empty,.err-box{padding:40px 0;text-align:center;color:var(--mute);font-size:0.9rem;}
+  .err-box{color:var(--red);}
+  .all-done{text-align:center;padding:50px 20px;}
+  .all-done .big{font-size:2.4rem;}
+</style>
+</head>
+<body>
+<div class="topnav"><a class="logo" href="index.html"><span class="dot"></span>Mom Support</a></div>
+<div class="screen">
+  <main id="main"><div class="loading">A carregar…</div></main>
+</div>
+
+<script>
+  const qs = new URLSearchParams(window.location.search);
+  const institution = qs.get('institution');
+  const STATUS_OPTIONS = [
+    {value:'Vagas disponíveis', label:'Vagas disponíveis'},
+    {value:'Poucas vagas', label:'Poucas vagas'},
+    {value:'Lista de espera', label:'Lista de espera'},
+    {value:'Sem vagas', label:'Sem vagas'},
+  ];
+
+  function pillClass(status){
+    const s = (status||'').toLowerCase();
+    if(s.includes('dispon')) return 'ok';
+    if(s.includes('sem vaga')) return 'no';
+    return 'warn';
+  }
+  function pillLabel(status){
+    const s = (status||'').toLowerCase();
+    if(s.includes('dispon')) return 'Vagas disponíveis';
+    if(s.includes('sem vaga')) return 'Sem vagas';
+    if(s.includes('espera')) return 'Lista de espera';
+    if(s.includes('poucas')) return 'Poucas vagas';
+    return 'A confirmar';
+  }
+  function pillHtml(status){
+    return `<span class="status-pill ${pillClass(status)}"><span class="dot"></span>${pillLabel(status)}</span>`;
+  }
+
+  function serviceCard(s){
+    return `
+    <div class="card" data-id="${s.id}">
+      <div class="service">${s.service}</div>
+      <div class="agerange">${s.type}${s.ageRangeLabel ? ' · ' + s.ageRangeLabel : ''}</div>
+      <div>${pillHtml(s.vacancyStatus)}</div>
+
+      <div class="confirm-q">Continua correto?</div>
+      <div class="confirm-actions">
+        <button class="btn-yes" data-action="yes">✓ Sim</button>
+        <button class="btn-alt" data-action="edit">Alterar</button>
+      </div>
+
+      <div class="edit-panel">
+        <div class="confirm-q" style="margin-top:0;">Atualizar disponibilidade</div>
+        ${STATUS_OPTIONS.map((o,i)=>`
+          <label class="opt">
+            <input type="radio" name="status-${s.id}" value="${o.value}">
+            ${o.label}
+          </label>`).join('')}
+        <button class="save-btn" data-action="save">Guardar</button>
+      </div>
+      <div class="done-tag">Confirmado ✓</div>
+    </div>`;
+  }
+
+  async function load(){
+    const main = document.getElementById('main');
+    if(!institution){
+      main.innerHTML = '<div class="err-box">Link inválido — falta o parâmetro ?institution=</div>';
+      return;
+    }
+    try {
+      const resp = await fetch('/.netlify/functions/confirm?institution=' + encodeURIComponent(institution));
+      if(!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      if(!data.services || data.services.length === 0){
+        main.innerHTML = `<div class="empty">Não encontrámos serviços para "${institution}".</div>`;
+        return;
+      }
+      main.innerHTML = `
+        <h1>Olá, ${institution}</h1>
+        <p class="sub">Confirme a informação sobre as suas vagas.</p>
+        <div class="time">Leva menos de 20 segundos.</div>
+        ${data.services.map(serviceCard).join('')}
+        <button class="confirm-all" id="confirmAll">✓ Confirmar tudo</button>
+      `;
+      wireCards();
+    } catch(e){
+      main.innerHTML = `<div class="err-box">Não foi possível carregar (${e.message}).</div>`;
+    }
+  }
+
+  function wireCards(){
+    document.querySelectorAll('.card').forEach(card => {
+      const id = card.dataset.id;
+      const editPanel = card.querySelector('.edit-panel');
+      const doneTag = card.querySelector('.done-tag');
+      const pill = card.querySelector('.status-pill');
+      const actions = card.querySelector('.confirm-actions');
+
+      card.querySelector('[data-action="yes"]').addEventListener('click', () => {
+        actions.style.display = 'none';
+        doneTag.style.display = 'block';
+        checkAllDone();
+      });
+
+      card.querySelector('[data-action="edit"]').addEventListener('click', () => {
+        editPanel.classList.toggle('open');
+      });
+
+      card.querySelector('[data-action="save"]').addEventListener('click', async () => {
+        const checked = card.querySelector(`input[name="status-${id}"]:checked`);
+        if(!checked) return;
+        const newStatus = checked.value;
+        const saveBtn = card.querySelector('[data-action="save"]');
+        saveBtn.textContent = 'A guardar…';
+        saveBtn.disabled = true;
+        try {
+          const resp = await fetch('/.netlify/functions/confirm', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ recordId: id, vacancyStatus: newStatus }),
+          });
+          if(!resp.ok) throw new Error('HTTP ' + resp.status);
+          pill.outerHTML = pillHtml(newStatus);
+          editPanel.classList.remove('open');
+          actions.style.display = 'none';
+          doneTag.style.display = 'block';
+          checkAllDone();
+        } catch(e){
+          saveBtn.textContent = 'Erro — tentar novamente';
+          saveBtn.disabled = false;
+        }
+      });
+    });
+  }
+
+  function checkAllDone(){
+    const all = document.querySelectorAll('.card').length;
+    const done = document.querySelectorAll('.done-tag[style*="block"]').length;
+    const btn = document.getElementById('confirmAll');
+    if(done >= all) btn.disabled = false;
+  }
+
+  document.addEventListener('click', (e) => {
+    if(e.target && e.target.id === 'confirmAll'){
+      document.getElementById('main').innerHTML = `
+        <div class="all-done">
+          <div class="big">✓</div>
+          <h1>Obrigado!</h1>
+          <p class="sub">A informação foi atualizada. Pode fechar esta página.</p>
+        </div>`;
+    }
+  });
+
+  load();
+</script>
+</body>
+</html>
