@@ -132,7 +132,7 @@
       }
       if(type && s.type !== type) return false;
       if(statusKey && statusInfo(s.vacancyStatus).key !== statusKey) return false;
-      if(loc && !(s.address || '').toLowerCase().includes(loc)) return false;
+      if(loc && !(s.municipality || '').toLowerCase().includes(loc)) return false;
       if(search && !((s.institution||'') + ' ' + (s.name||'')).toLowerCase().includes(search)) return false;
       return true;
     });
