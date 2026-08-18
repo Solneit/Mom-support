@@ -23,6 +23,18 @@ function flatten(val) {
   return String(val);
 }
 
+// "Instituição" is a Link field — the API returns the linked record's ID,
+// not its display name. "Nome do serviço" reliably follows
+// "InstitutionName_Type", so derive the real name from that instead.
+function institutionName(f) {
+  const raw = flatten(f["Instituição"]);
+  const looksLikeRecordId = /^rec[A-Za-z0-9]{14,}$/.test(raw);
+  if (raw && !looksLikeRecordId) return raw;
+  const svcName = flatten(f["Nome do serviço"]);
+  if (svcName.includes("_")) return svcName.split("_")[0].trim();
+  return raw || svcName;
+}
+
 async function airtableFetch(path, token, options = {}) {
   const url = `https://api.airtable.com/v0/${BASE_ID}/${path}`;
   const resp = await airtableCall(url, token, options);
@@ -58,7 +70,7 @@ exports.handler = async (event) => {
     try {
       const data = await airtableFetch(encodeURIComponent(TABLE_NAME), readToken);
       const services = (data.records || [])
-        .filter((r) => flatten(r.fields["Instituição"]) === institution)
+        .filter((r) => institutionName(r.fields) === institution)
         .map((r) => ({
           id: r.id,
           service: flatten(r.fields["Nome do serviço"]),

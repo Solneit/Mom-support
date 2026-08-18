@@ -24,6 +24,20 @@ function flatten(val) {
   return String(val);
 }
 
+// "Instituição" is a genuine Link field, so the API returns the LINKED
+// RECORD'S ID (e.g. "rec5kPDaR1XpIMy2T"), not its display name — flatten()
+// alone can't fix that, since there's no name in the payload at all here.
+// "Nome do serviço" reliably follows "InstitutionName_Type" (e.g.
+// "Mini Milkies_Creche"), so we derive the real name from that instead.
+function institutionName(f) {
+  const raw = flatten(f["Instituição"]);
+  const looksLikeRecordId = /^rec[A-Za-z0-9]{14,}$/.test(raw);
+  if (raw && !looksLikeRecordId) return raw;
+  const svcName = flatten(f["Nome do serviço"]);
+  if (svcName.includes("_")) return svcName.split("_")[0].trim();
+  return raw || svcName;
+}
+
 exports.handler = async (event) => {
   const token = process.env.AIRTABLE_TOKEN;
   if (!token) {
@@ -52,7 +66,7 @@ exports.handler = async (event) => {
       return {
         id: r.id,
         name: flatten(f["Nome do serviço"]),
-        institution: flatten(f["Instituição"]),
+        institution: institutionName(f),
         type: flatten(f["Tipo de serviço"]),
         ageMin: f["Age Min"] ?? null,
         ageMax: f["Age Max"] ?? null,
