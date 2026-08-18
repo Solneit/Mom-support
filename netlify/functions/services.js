@@ -14,6 +14,16 @@
 const BASE_ID = "appenkUjX71btkhcc";
 const TABLE_NAME = "SERVICES"; // exact table name as created in Airtable
 
+// Airtable Link and Lookup fields come back as arrays even when there's only
+// one value (e.g. "Instituição" -> ["O Saltitão"], "Morada da instituição"
+// -> ["Rua Serpa Pinto 102"]). This normalizes any field to a plain string
+// regardless of whether Airtable sent a string, an array, or nothing.
+function flatten(val) {
+  if (Array.isArray(val)) return val.length ? String(val[0]) : "";
+  if (val === null || val === undefined) return "";
+  return String(val);
+}
+
 exports.handler = async (event) => {
   const token = process.env.AIRTABLE_TOKEN;
   if (!token) {
@@ -41,25 +51,25 @@ exports.handler = async (event) => {
       const f = r.fields || {};
       return {
         id: r.id,
-        name: f["Nome do serviço"] || "",
-        institution: f["Instituição"] || "",
-        type: f["Tipo de serviço"] || "",
+        name: flatten(f["Nome do serviço"]),
+        institution: flatten(f["Instituição"]),
+        type: flatten(f["Tipo de serviço"]),
         ageMin: f["Age Min"] ?? null,
         ageMax: f["Age Max"] ?? null,
-        ageRangeLabel: f["Faixa etária"] || "",
-        vacancyStatus: f["Estado das vagas"] || "Unknown",
-        waitingList: f["Lista de espera"] || "Unknown",
-        applicationsOpen: f["Candidaturas abertas"] || "Unknown",
-        schedule: f["Horário"] || "",
+        ageRangeLabel: flatten(f["Faixa etária"]),
+        vacancyStatus: flatten(f["Estado das vagas"]) || "Unknown",
+        waitingList: flatten(f["Lista de espera"]) || "Unknown",
+        applicationsOpen: flatten(f["Candidaturas abertas"]) || "Unknown",
+        schedule: flatten(f["Horário"]),
         priceMonth: f["Preço / mês"] ?? null,
-        lastVerified: f["Última verificação do serviço"] || "",
-        verificationMethod: f["Método de verificação"] || "",
-        phone: f["Telefone da instituição"] || "",
-        email: f["Email da instituição"] || "",
-        website: f["Website da instituição"] || "",
-        facebook: f["Facebook da instituição"] || "",
-        instagram: f["Instagram da instituição"] || "",
-        address: f["Morada da instituição"] || "",
+        lastVerified: flatten(f["Última verificação do serviço"]),
+        verificationMethod: flatten(f["Método de verificação"]),
+        phone: flatten(f["Telefone da instituição"]),
+        email: flatten(f["Email da instituição"]),
+        website: flatten(f["Website da instituição"]),
+        facebook: flatten(f["Facebook da instituição"]),
+        instagram: flatten(f["Instagram da instituição"]),
+        address: flatten(f["Morada da instituição"]),
       };
     });
 
