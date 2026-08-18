@@ -16,6 +16,13 @@
 const BASE_ID = "appenkUjX71btkhcc";
 const TABLE_NAME = "SERVICES";
 
+// Airtable Link/Lookup fields return arrays even for a single value.
+function flatten(val) {
+  if (Array.isArray(val)) return val.length ? String(val[0]) : "";
+  if (val === null || val === undefined) return "";
+  return String(val);
+}
+
 async function airtableFetch(path, token, options = {}) {
   const url = `https://api.airtable.com/v0/${BASE_ID}/${path}`;
   const resp = await airtableCall(url, token, options);
@@ -51,14 +58,14 @@ exports.handler = async (event) => {
     try {
       const data = await airtableFetch(encodeURIComponent(TABLE_NAME), readToken);
       const services = (data.records || [])
-        .filter((r) => (r.fields["Instituição"] || "") === institution)
+        .filter((r) => flatten(r.fields["Instituição"]) === institution)
         .map((r) => ({
           id: r.id,
-          service: r.fields["Nome do serviço"] || "",
-          type: r.fields["Tipo de serviço"] || "",
-          ageRangeLabel: r.fields["Faixa etária"] || "",
-          vacancyStatus: r.fields["Estado das vagas"] || "Unknown",
-          lastVerified: r.fields["Última verificação do serviço"] || "",
+          service: flatten(r.fields["Nome do serviço"]),
+          type: flatten(r.fields["Tipo de serviço"]),
+          ageRangeLabel: flatten(r.fields["Faixa etária"]),
+          vacancyStatus: flatten(r.fields["Estado das vagas"]) || "Unknown",
+          lastVerified: flatten(r.fields["Última verificação do serviço"]),
         }));
       return {
         statusCode: 200,
