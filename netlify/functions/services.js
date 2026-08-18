@@ -70,6 +70,7 @@ exports.handler = async (event) => {
         facebook: flatten(f["Facebook da instituição"]),
         instagram: flatten(f["Instagram da instituição"]),
         address: flatten(f["Morada da instituição"]),
+        municipality: flatten(f["Localização"]),
       };
     });
 
@@ -83,7 +84,7 @@ exports.handler = async (event) => {
     }
     if (params.municipality) {
       const q = params.municipality.trim().toLowerCase();
-      records = records.filter((s) => (s.address || "").toLowerCase().includes(q));
+      records = records.filter((s) => (s.municipality || "").toLowerCase().includes(q));
     }
     if (params.type) {
       records = records.filter((s) => s.type === params.type);
